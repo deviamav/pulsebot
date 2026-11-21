@@ -1,1 +1,0 @@
-"""Aiogram bot package."""

@@ -1,117 +1,65 @@
 # PulseBot
 
-> **CV theme:** Automation & Integration Platform (Telegram bridge)  
-> **Repo:** [deviamav/pulsebot](https://github.com/deviamav/pulsebot)
+![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
+![aiogram](https://img.shields.io/badge/aiogram-3-blue)
+![Redis](https://img.shields.io/badge/Redis-7-DC382D?logo=redis&logoColor=white)
+![License](https://img.shields.io/badge/license-MIT-green)
 
-**PulseBot** is a production-style **Telegram task bridge** between clients and designers. All communication runs **through the bot**: neither side sees the other’s Telegram username, numeric ID, or profile. Files are relayed via `copyMessage` / `file_id` to preserve sender anonymity. Access is **invite-code only** — admins issue one-time codes with role and expiry.
+**Privacy-minded Telegram task bridge** between clients and specialists. Both sides talk to the bot — not to each other’s accounts. Access is invite-code only.
+
+## Why reviewers care
+
+- Production-shaped **bot architecture**: handlers · services · repositories
+- **Anonymity** via `copyMessage` / `file_id` relay (no username leakage)
+- **Redis** rate limits + FSM storage
+- Health endpoints, structured logging, graceful shutdown
+- Docker Compose for Postgres + Redis + bot
 
 ## Features
 
-- **Closed access via invite codes** — without a valid code, users see “access restricted”
-- Roles: `ADMIN`, `CUSTOMER`, `DESIGNER` with checks at handler, service, and repository layers
-- FSM task creation wizard: title → description → priority → deadline → designer → files → confirm
-- Task statuses with allowed transitions per role (`NEW` … `DONE`)
-- Inline task cards, anonymous comments (role-only attribution), attachments (photo, PDF, ZIP, PSD, etc.)
-- Confirmation step for destructive actions (close task, ban user, revoke invite)
-- Reply keyboard menus per role; pagination on lists
-- Deadline reminders (24h, 2h, overdue)
-- **Redis rate limiting** per user; FSM storage in Redis
-- Structured JSON logging (structlog), `/healthz` and `/readyz` for Docker
-- Graceful shutdown (SIGTERM/SIGINT)
+- Invite codes with role + expiry (`ADMIN` / `CUSTOMER` / `DESIGNER`)
+- FSM wizard for task creation (title → files → confirm)
+- Status transitions enforced per role
+- Anonymous comments (role attribution only)
+- Deadline reminders · pagination · confirmation for destructive actions
+- `/healthz` + `/readyz` for orchestration
 
 ## Stack
 
-- Python **3.12** · **aiogram 3** · **asyncpg** · SQLAlchemy 2.0 async · Alembic
-- PostgreSQL 16 · Redis 7
-- Pydantic Settings · aiohttp health endpoint
-- Docker Compose
+`Python 3.12` · `aiogram 3` · `SQLAlchemy 2` · `asyncpg` · `Alembic` · `PostgreSQL` · `Redis` · `Pydantic Settings` · `Docker`
 
-## Project layout
+## Architecture
 
-```
-app/
-├── api/              # healthcheck
-├── bot/              # handlers, keyboards, middlewares, FSM states
-├── core/             # config, logging
-├── db/models/        # User, Task, Comment, Attachment, InviteCode
-├── repositories/
-└── services/
-migrations/           # Alembic
+```mermaid
+flowchart LR
+  TG[Telegram] --> Bot[aiogram app]
+  Bot --> Svc[Services]
+  Svc --> Repo[Repositories]
+  Repo --> PG[(PostgreSQL)]
+  Bot --> Redis[(Redis FSM + limits)]
 ```
 
-## Quick start (Docker)
+## Quick start
 
 ```bash
 cp .env.example .env
-# BOT_TOKEN from @BotFather; ADMIN_IDS=comma-separated Telegram user IDs
+# set BOT_TOKEN from BotFather when you want a live bot
 
-docker compose up -d --build
-docker compose logs -f bot
+docker compose up --build
 ```
 
-Health: `http://127.0.0.1:8080/healthz`, `http://127.0.0.1:8080/readyz`.
+Without a real token the container still shows the intended topology; set `BOT_TOKEN` for an interactive demo.
 
-Users in `ADMIN_IDS` become `ADMIN` on first `/start`. They can create invite codes for `CUSTOMER` / `DESIGNER` roles.
+## Layout
 
-## Local development
-
-```bash
-python -m venv .venv
-# Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-cp .env.example .env
-# POSTGRES_HOST=localhost, REDIS_HOST=localhost
-
-docker compose up -d postgres redis
-alembic upgrade head
-python -m app
 ```
-
-## Environment
-
-| Variable | Description |
-|----------|-------------|
-| `BOT_TOKEN` | BotFather token |
-| `ADMIN_IDS` | Bootstrap admin Telegram IDs |
-| `POSTGRES_*` | Database |
-| `REDIS_*` | FSM + throttling |
-| `RATE_LIMIT_PER_SECOND` | Default `2` |
-
-See `.env.example` for placeholders only.
-
-## Migrations
-
-```bash
-alembic upgrade head
-alembic revision --autogenerate -m "describe change"
+app/bot/           handlers, keyboards, middlewares, FSM
+app/services/      business rules
+app/repositories/  data access
+app/db/models/     SQLAlchemy models
+migrations/        Alembic
 ```
-
-Migrations run automatically in the Docker `bot` container before start.
-
-## Production notes
-
-- Long polling by default; optional reverse proxy only needed for health HTTP
-- Back up the `postgres_data` volume
-- JSON logs suit Loki / ELK; probe `/readyz` for uptime checks
-
-Example nginx (health only):
-
-```nginx
-server {
-    listen 80;
-    server_name pulsebot.example.com;
-    location /healthz {
-        proxy_pass http://127.0.0.1:8080/healthz;
-    }
-}
-```
-
-## Security & anonymity
-
-- Media uses `copyMessage` (no “forwarded from” exposure)
-- Formatters never print Telegram IDs or usernames to the other party
-- Parameterized SQL via SQLAlchemy 2.0
 
 ## License
 
-Portfolio / demonstration use.
+MIT — portfolio / demonstration use. No personal chats or tokens are included.
